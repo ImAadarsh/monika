@@ -1,4 +1,8 @@
-import mysql, { Pool, RowDataPacket, ResultSetHeader } from "mysql2/promise";
+import mysql, {
+  Pool,
+  RowDataPacket,
+  ResultSetHeader,
+} from "mysql2/promise";
 
 let pool: Pool | null = null;
 
@@ -20,17 +24,17 @@ export function getPool(): Pool {
 
 export async function query<T extends RowDataPacket[]>(
   sql: string,
-  params?: Record<string, unknown> | unknown[]
+  params: Record<string, string | number | boolean | null> = {}
 ): Promise<T> {
-  const [rows] = await getPool().execute(sql, params);
+  const [rows] = await getPool().query(sql, params);
   return rows as T;
 }
 
 export async function execute(
   sql: string,
-  params?: Record<string, unknown> | unknown[]
+  params: Record<string, string | number | boolean | null> = {}
 ): Promise<ResultSetHeader> {
-  const [result] = await getPool().execute(sql, params);
+  const [result] = await getPool().query(sql, params);
   return result as ResultSetHeader;
 }
 

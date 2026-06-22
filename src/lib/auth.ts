@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
+import { query, RowDataPacket } from "@/lib/db";
 
 const COOKIE_NAME = "formflow_session";
 
@@ -53,3 +54,18 @@ export async function getSession(): Promise<AdminSession | null> {
 }
 
 export { COOKIE_NAME };
+
+export async function authenticateAdmin(email: string, password: string) {
+  const rows = await query<RowDataPacket[]>(
+    "SELECT id, email, password_hash, name FROM admins WHERE email = :email LIMIT 1",
+    { email }
+  );
+  if (!rows.length) return null;
+  const valid = await bcrypt.compare(password, rows[0].password_hash);
+  if (!valid) return null;
+  return {
+    id: rows[0].id,
+    email: rows[0].email,
+    name: rows[0].name,
+  };
+}

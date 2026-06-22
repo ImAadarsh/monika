@@ -39,6 +39,7 @@ interface FieldRow extends RowDataPacket {
 function parseJson<T>(value: string | T | null, fallback: T): T {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "object") return value as T;
+  if (typeof value !== "string") return fallback;
   try {
     return JSON.parse(value) as T;
   } catch {
@@ -185,7 +186,7 @@ export async function updateForm(
   if (!existing) return null;
 
   const updates: string[] = [];
-  const params: Record<string, unknown> = { id };
+  const params: Record<string, string | number | boolean | null> = { id };
 
   if (data.title !== undefined) {
     updates.push("title = :title");
@@ -479,21 +480,5 @@ export async function getDashboardStats() {
     publishedForms: Number(rows[0]?.published_forms || 0),
     totalSubmissions: Number(rows[0]?.total_submissions || 0),
     submissionsToday: Number(rows[0]?.submissions_today || 0),
-  };
-}
-
-export async function authenticateAdmin(email: string, password: string) {
-  const rows = await query<RowDataPacket[]>(
-    "SELECT id, email, password_hash, name FROM admins WHERE email = :email LIMIT 1",
-    { email }
-  );
-  if (!rows.length) return null;
-  const bcrypt = await import("bcryptjs");
-  const valid = await bcrypt.compare(password, rows[0].password_hash);
-  if (!valid) return null;
-  return {
-    id: rows[0].id,
-    email: rows[0].email,
-    name: rows[0].name,
   };
 }
