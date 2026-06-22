@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { FileText, Plus, TrendingUp, Users } from "lucide-react";
+import { FileText, Plus, TrendingUp, Users, Inbox } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { listForms, getDashboardStats } from "@/lib/forms";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -60,13 +60,20 @@ export default async function AdminDashboardPage() {
                       {formatDistanceToNow(new Date(form.updatedAt), { addSuffix: true })}
                     </p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  <div className="flex items-center gap-2">
+                    {form.submissionCount > 0 && (
+                      <Link href={`/admin/forms/${form.id}/responses`} className="text-muted-foreground hover:text-primary">
+                        <Inbox className="h-4 w-4" />
+                      </Link>
+                    )}
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                     form.isPublished
                       ? "bg-emerald-100 text-emerald-700"
                       : "bg-muted text-muted-foreground"
                   }`}>
                     {form.isPublished ? "Live" : "Draft"}
                   </span>
+                  </div>
                 </Link>
               ))}
             </div>

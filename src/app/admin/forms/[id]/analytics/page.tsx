@@ -45,9 +45,19 @@ export default function AnalyticsPage({ params }: { params: Promise<{ id: string
       <Link href={`/admin/forms/${formId}/edit`} className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Back to editor
       </Link>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Analytics</h1>
-        <p className="text-muted-foreground">Detailed insights into form responses</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Analytics</h1>
+          <p className="text-muted-foreground">Detailed insights into form responses</p>
+        </div>
+        <div className="flex gap-2">
+          <a href={`/api/forms/${formId}/export?format=csv`} download>
+            <button type="button" className="rounded-lg border px-3 py-2 text-sm hover:bg-accent">Export CSV</button>
+          </a>
+          <Link href={`/admin/forms/${formId}/responses`} className="rounded-lg border px-3 py-2 text-sm hover:bg-accent">
+            View all responses
+          </Link>
+        </div>
       </div>
       <AnalyticsDashboard data={analytics} />
     </AdminShell>

@@ -243,17 +243,114 @@ export async function deleteForm(id: string): Promise<boolean> {
   return result.affectedRows > 0;
 }
 
+export async function duplicateForm(id: string): Promise<Form | null> {
+  const existing = await getFormById(id);
+  if (!existing) return null;
+  const newFields = existing.fields.map((f) => ({
+    ...f,
+    id: uuidv4(),
+    options: f.options?.map((o) => ({ ...o, id: uuidv4() })),
+  }));
+  return createForm({
+    title: `${existing.title} (Copy)`,
+    description: existing.description,
+    settings: existing.settings,
+    fields: newFields,
+  });
+}
+
+export async function updateFormSlug(id: string, slug: string): Promise<Form | null> {
+  const clean = slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+  if (!clean) return null;
+  const rows = await query<RowDataPacket[]>(
+    "SELECT id FROM forms WHERE slug = :slug AND id != :id LIMIT 1",
+    { slug: clean, id }
+  );
+  if (rows.length) return null;
+  await execute("UPDATE forms SET slug = :slug WHERE id = :id", { slug: clean, id });
+  return getFormById(id);
+}
+
+export async function recordFormView(
+  formId: string,
+  meta?: { ip?: string; userAgent?: string }
+): Promise<void> {
+  try {
+    await execute(
+      `INSERT INTO form_views (id, form_id, ip_address, user_agent) VALUES (:id, :formId, :ip, :ua)`,
+      { id: uuidv4(), formId, ip: meta?.ip || null, ua: meta?.userAgent || null }
+    );
+  } catch {
+    /* table may not exist yet */
+  }
+}
+
+async function getSubmissionCount(formId: string): Promise<number> {
+  const rows = await query<RowDataPacket[]>(
+    "SELECT COUNT(*) AS cnt FROM form_submissions WHERE form_id = :formId",
+    { formId }
+  );
+  return Number(rows[0]?.cnt || 0);
+}
+
+async function getRecentSubmissionFromIp(formId: string, ip: string): Promise<boolean> {
+  const rows = await query<RowDataPacket[]>(
+    `SELECT id FROM form_submissions WHERE form_id = :formId AND ip_address = :ip
+     AND submitted_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1`,
+    { formId, ip }
+  );
+  return rows.length > 0;
+}
+
 export async function submitForm(
   slug: string,
   answers: Record<string, string | string[]>,
-  meta?: { ip?: string; userAgent?: string }
-): Promise<{ success: boolean; message?: string }> {
+  meta?: {
+    ip?: string;
+    userAgent?: string;
+    referrer?: string;
+    completionTimeMs?: number;
+    honeypot?: string;
+    password?: string;
+  }
+): Promise<{ success: boolean; message?: string; redirectUrl?: string }> {
   const form = await getFormBySlug(slug);
   if (!form || !form.isPublished) {
     return { success: false, message: "Form not found or not published" };
   }
 
-  for (const field of form.fields) {
+  const settings = form.settings;
+
+  if (settings.openDate && new Date(settings.openDate) > new Date()) {
+    return { success: false, message: "This form is not open yet" };
+  }
+  if (settings.closeDate && new Date(settings.closeDate) < new Date()) {
+    return { success: false, message: "This form has closed" };
+  }
+  if (settings.password && meta?.password !== settings.password) {
+    return { success: false, message: "Incorrect password" };
+  }
+  if (settings.enableHoneypot && meta?.honeypot) {
+    return { success: false, message: "Submission rejected" };
+  }
+  if (settings.maxSubmissions) {
+    const count = await getSubmissionCount(form.id);
+    if (count >= settings.maxSubmissions) {
+      return { success: false, message: "This form has reached its submission limit" };
+    }
+  }
+  if (!settings.allowMultipleSubmissions && meta?.ip) {
+    const recent = await getRecentSubmissionFromIp(form.id, meta.ip);
+    if (recent) {
+      return { success: false, message: "You have already submitted this form recently" };
+    }
+  }
+
+  const inputFields = form.fields.filter(
+    (f) => !["heading", "paragraph", "page_break"].includes(f.type)
+  );
+
+  for (const field of inputFields) {
     if (field.required) {
       const val = answers[field.id];
       if (!val || (Array.isArray(val) && val.length === 0)) {
@@ -263,18 +360,33 @@ export async function submitForm(
   }
 
   const submissionId = uuidv4();
-  await execute(
-    `INSERT INTO form_submissions (id, form_id, ip_address, user_agent)
-     VALUES (:id, :formId, :ip, :ua)`,
-    {
-      id: submissionId,
-      formId: form.id,
-      ip: meta?.ip || null,
-      ua: meta?.userAgent || null,
-    }
-  );
+  try {
+    await execute(
+      `INSERT INTO form_submissions (id, form_id, ip_address, user_agent, completion_time_ms, referrer)
+       VALUES (:id, :formId, :ip, :ua, :completionTime, :referrer)`,
+      {
+        id: submissionId,
+        formId: form.id,
+        ip: meta?.ip || null,
+        ua: meta?.userAgent || null,
+        completionTime: meta?.completionTimeMs || null,
+        referrer: meta?.referrer || null,
+      }
+    );
+  } catch {
+    await execute(
+      `INSERT INTO form_submissions (id, form_id, ip_address, user_agent)
+       VALUES (:id, :formId, :ip, :ua)`,
+      {
+        id: submissionId,
+        formId: form.id,
+        ip: meta?.ip || null,
+        ua: meta?.userAgent || null,
+      }
+    );
+  }
 
-  for (const field of form.fields) {
+  for (const field of inputFields) {
     const val = answers[field.id];
     if (val === undefined || val === null) continue;
     const value = Array.isArray(val) ? JSON.stringify(val) : String(val);
@@ -290,7 +402,21 @@ export async function submitForm(
     );
   }
 
-  return { success: true };
+  if (settings.webhookUrl) {
+    fetch(settings.webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "form.submitted",
+        formId: form.id,
+        submissionId,
+        answers,
+        submittedAt: new Date().toISOString(),
+      }),
+    }).catch(() => {});
+  }
+
+  return { success: true, redirectUrl: settings.redirectUrl };
 }
 
 export async function getAnalytics(formId: string): Promise<AnalyticsData | null> {
@@ -349,13 +475,35 @@ export async function getAnalytics(formId: string): Promise<AnalyticsData | null
     { formId }
   );
 
+  let totalViews = 0;
+  let avgCompletion = 0;
+  try {
+    const viewRows = await query<RowDataPacket[]>(
+      "SELECT COUNT(*) AS cnt FROM form_views WHERE form_id = :formId",
+      { formId }
+    );
+    totalViews = Number(viewRows[0]?.cnt || 0);
+    const avgRows = await query<RowDataPacket[]>(
+      "SELECT AVG(completion_time_ms) AS avg_ms FROM form_submissions WHERE form_id = :formId AND completion_time_ms IS NOT NULL",
+      { formId }
+    );
+    avgCompletion = Number(avgRows[0]?.avg_ms || 0);
+  } catch {
+    /* optional columns */
+  }
+
+  const conversionRate = totalViews > 0 ? Math.round((total / totalViews) * 100) : (total > 0 ? 100 : 0);
+
   return {
     overview: {
       totalSubmissions: total,
       submissionsToday: Number(overview.today || 0),
       submissionsThisWeek: Number(overview.week || 0),
       submissionsThisMonth: Number(overview.month || 0),
-      conversionRate: form.isPublished ? 100 : 0,
+      avgCompletionTime: avgCompletion || undefined,
+      conversionRate,
+      totalViews,
+      bounceRate: totalViews > 0 ? Math.round(((totalViews - total) / totalViews) * 100) : undefined,
     },
     timeline: timelineRows.map((r) => ({
       date: String(r.date),
@@ -411,7 +559,7 @@ async function getFieldStat(
       count,
       percentage: answerRows.length ? Math.round((count / answerRows.length) * 100) : 0,
     }));
-  } else if (["number", "scale", "rating"].includes(field.type)) {
+  } else if (["number", "scale", "rating", "nps"].includes(field.type)) {
     const nums = answerRows
       .map((r) => Number(r.value))
       .filter((n) => !isNaN(n));
@@ -424,47 +572,114 @@ async function getFieldStat(
   return stat;
 }
 
+async function mapSubmissionRow(sub: RowDataPacket): Promise<Submission> {
+  const answerRows = await query<RowDataPacket[]>(
+    `SELECT sa.field_id, sa.value, ff.label, ff.type
+     FROM submission_answers sa
+     JOIN form_fields ff ON ff.id = sa.field_id
+     WHERE sa.submission_id = :submissionId`,
+    { submissionId: sub.id }
+  );
+  return {
+    id: sub.id,
+    formId: sub.form_id,
+    submittedAt: sub.submitted_at.toISOString(),
+    ipAddress: sub.ip_address || undefined,
+    userAgent: sub.user_agent || undefined,
+    completionTimeMs: sub.completion_time_ms ? Number(sub.completion_time_ms) : undefined,
+    referrer: sub.referrer || undefined,
+    answers: answerRows.map((a) => {
+      let value: string | string[] = String(a.value);
+      try {
+        const parsed = JSON.parse(String(a.value));
+        if (Array.isArray(parsed)) value = parsed;
+      } catch {
+        /* keep string */
+      }
+      return {
+        fieldId: a.field_id,
+        fieldLabel: a.label,
+        fieldType: a.type as FieldType,
+        value,
+      };
+    }),
+  };
+}
+
 async function getRecentSubmissions(
   formId: string,
   limit: number
 ): Promise<Submission[]> {
   const subRows = await query<RowDataPacket[]>(
-    `SELECT id, form_id, submitted_at FROM form_submissions
+    `SELECT id, form_id, submitted_at, ip_address, user_agent, completion_time_ms, referrer
+     FROM form_submissions
      WHERE form_id = :formId ORDER BY submitted_at DESC LIMIT ${limit}`,
     { formId }
   );
+  return Promise.all(subRows.map(mapSubmissionRow));
+}
 
-  const submissions: Submission[] = [];
-  for (const sub of subRows) {
-    const answerRows = await query<RowDataPacket[]>(
-      `SELECT sa.field_id, sa.value, ff.label, ff.type
-       FROM submission_answers sa
-       JOIN form_fields ff ON ff.id = sa.field_id
-       WHERE sa.submission_id = :submissionId`,
-      { submissionId: sub.id }
-    );
-    submissions.push({
-      id: sub.id,
-      formId: sub.form_id,
-      submittedAt: sub.submitted_at.toISOString(),
-      answers: answerRows.map((a) => {
-        let value: string | string[] = String(a.value);
-        try {
-          const parsed = JSON.parse(String(a.value));
-          if (Array.isArray(parsed)) value = parsed;
-        } catch {
-          /* keep string */
-        }
-        return {
-          fieldId: a.field_id,
-          fieldLabel: a.label,
-          fieldType: a.type as FieldType,
-          value,
-        };
-      }),
-    });
+export async function getSubmissions(
+  formId: string,
+  options?: { limit?: number; offset?: number; search?: string; from?: string; to?: string }
+): Promise<{ submissions: Submission[]; total: number }> {
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+  let where = "form_id = :formId";
+  const params: Record<string, string | number | boolean | null> = { formId };
+
+  if (options?.from) {
+    where += " AND submitted_at >= :from";
+    params.from = options.from;
   }
-  return submissions;
+  if (options?.to) {
+    where += " AND submitted_at <= :to";
+    params.to = options.to;
+  }
+
+  const countRows = await query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS cnt FROM form_submissions WHERE ${where}`,
+    params
+  );
+  const total = Number(countRows[0]?.cnt || 0);
+
+  const subRows = await query<RowDataPacket[]>(
+    `SELECT id, form_id, submitted_at, ip_address, user_agent, completion_time_ms, referrer
+     FROM form_submissions WHERE ${where}
+     ORDER BY submitted_at DESC LIMIT ${limit} OFFSET ${offset}`,
+    params
+  );
+
+  let submissions = await Promise.all(subRows.map(mapSubmissionRow));
+
+  if (options?.search) {
+    const q = options.search.toLowerCase();
+    submissions = submissions.filter((s) =>
+      s.answers.some((a) =>
+        (Array.isArray(a.value) ? a.value.join(" ") : a.value).toLowerCase().includes(q)
+      )
+    );
+  }
+
+  return { submissions, total };
+}
+
+export async function deleteSubmission(submissionId: string, formId: string): Promise<boolean> {
+  const result = await execute(
+    "DELETE FROM form_submissions WHERE id = :id AND form_id = :formId",
+    { id: submissionId, formId }
+  );
+  return result.affectedRows > 0;
+}
+
+export async function getSubmissionById(submissionId: string, formId: string): Promise<Submission | null> {
+  const rows = await query<RowDataPacket[]>(
+    `SELECT id, form_id, submitted_at, ip_address, user_agent, completion_time_ms, referrer
+     FROM form_submissions WHERE id = :id AND form_id = :formId LIMIT 1`,
+    { id: submissionId, formId }
+  );
+  if (!rows.length) return null;
+  return mapSubmissionRow(rows[0]);
 }
 
 export async function getDashboardStats() {

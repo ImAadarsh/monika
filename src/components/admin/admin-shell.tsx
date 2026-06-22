@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/forms", label: "Forms", icon: FileText },
+  { href: "/admin/templates", label: "Templates", icon: Sparkles },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {

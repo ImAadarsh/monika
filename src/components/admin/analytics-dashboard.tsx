@@ -40,6 +40,12 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsData }) {
         <StatCard title="Today" value={formatNumber(overview.submissionsToday)} icon={Calendar} change="Last 24 hours" />
         <StatCard title="This Week" value={formatNumber(overview.submissionsThisWeek)} icon={TrendingUp} />
         <StatCard title="This Month" value={formatNumber(overview.submissionsThisMonth)} icon={BarChart3} />
+        {overview.totalViews !== undefined && overview.totalViews > 0 && (
+          <StatCard title="Page Views" value={formatNumber(overview.totalViews)} icon={Monitor} change={`${overview.conversionRate}% conversion`} />
+        )}
+        {overview.avgCompletionTime !== undefined && overview.avgCompletionTime > 0 && (
+          <StatCard title="Avg Completion" value={`${Math.round(overview.avgCompletionTime / 1000)}s`} icon={Clock} />
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

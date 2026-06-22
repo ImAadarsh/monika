@@ -20,7 +20,7 @@
     "jose": "^6.2.3",
     "lucide-react": "^1.21.0",
     "mysql2": "^3.22.5",
-    "next": "16.2.9",
+    "next": "^15.5.19",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -30,13 +30,14 @@
     "uuid": "^14.0.1"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "autoprefixer": "^10.5.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
-    "tailwindcss": "^4",
+    "eslint-config-next": "^15.5.19",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5"
   }
 }
