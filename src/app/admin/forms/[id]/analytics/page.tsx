@@ -10,14 +10,21 @@ import type { AnalyticsData } from "@/types/form";
 export default function AnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
   const [formId, setFormId] = useState("");
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     params.then(({ id }) => {
       setFormId(id);
       fetch(`/api/forms/${id}/analytics`)
-        .then((r) => r.json())
-        .then((data) => setAnalytics(data.analytics))
+        .then(async (r) => {
+          const data = await r.json();
+          if (!r.ok) {
+            throw new Error(data.error || "Failed to load analytics");
+          }
+          setAnalytics(data.analytics);
+        })
+        .catch((err: Error) => setError(err.message))
         .finally(() => setLoading(false));
     });
   }, [params]);
@@ -32,10 +39,14 @@ export default function AnalyticsPage({ params }: { params: Promise<{ id: string
     );
   }
 
-  if (!analytics) {
+  if (error || !analytics) {
     return (
       <AdminShell>
-        <p className="py-20 text-center text-muted-foreground">Analytics not available</p>
+        <p className="py-20 text-center text-muted-foreground">
+          {error === "Unauthorized"
+            ? "Please sign in to view analytics"
+            : error || "Analytics not available"}
+        </p>
       </AdminShell>
     );
   }

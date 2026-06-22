@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getSubmissions, deleteSubmission, getSubmissionById } from "@/lib/forms";
+import { getSubmissions, deleteSubmission } from "@/lib/forms";
 
 export async function GET(
   req: NextRequest,
@@ -17,8 +17,13 @@ export async function GET(
   const limit = Number(req.nextUrl.searchParams.get("limit") || 50);
   const offset = Number(req.nextUrl.searchParams.get("offset") || 0);
 
-  const result = await getSubmissions(id, { search, from, to, limit, offset });
-  return NextResponse.json(result);
+  try {
+    const result = await getSubmissions(id, { search, from, to, limit, offset });
+    return NextResponse.json(result);
+  } catch (e) {
+    console.error("Failed to load submissions:", e);
+    return NextResponse.json({ error: "Failed to load submissions" }, { status: 500 });
+  }
 }
 
 export async function DELETE(

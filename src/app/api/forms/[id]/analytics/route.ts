@@ -11,9 +11,14 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const analytics = await getAnalytics(id);
-  if (!analytics) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const analytics = await getAnalytics(id);
+    if (!analytics) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.json({ analytics });
+  } catch (e) {
+    console.error("Failed to load analytics:", e);
+    return NextResponse.json({ error: "Failed to load analytics" }, { status: 500 });
   }
-  return NextResponse.json({ analytics });
 }

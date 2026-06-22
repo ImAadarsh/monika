@@ -29,8 +29,12 @@ export default function ResponsesPage({ params }: { params: Promise<{ id: string
     if (from) qs.set("from", from);
     if (to) qs.set("to", to);
     fetch(`/api/forms/${formId}/submissions?${qs}`)
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) {
+          toast.error(data.error || "Failed to load responses");
+          return;
+        }
         setSubmissions(data.submissions || []);
         setTotal(data.total || 0);
       })

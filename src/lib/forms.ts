@@ -285,6 +285,27 @@ export async function recordFormView(
   }
 }
 
+const BASE_SUBMISSION_COLUMNS =
+  "id, form_id, submitted_at, ip_address, user_agent";
+
+let hasOptionalSubmissionColumns: boolean | null = null;
+
+async function submissionSelectColumns(): Promise<string> {
+  if (hasOptionalSubmissionColumns === null) {
+    try {
+      await query<RowDataPacket[]>(
+        "SELECT completion_time_ms, referrer FROM form_submissions LIMIT 0"
+      );
+      hasOptionalSubmissionColumns = true;
+    } catch {
+      hasOptionalSubmissionColumns = false;
+    }
+  }
+  return hasOptionalSubmissionColumns
+    ? `${BASE_SUBMISSION_COLUMNS}, completion_time_ms, referrer`
+    : BASE_SUBMISSION_COLUMNS;
+}
+
 async function getSubmissionCount(formId: string): Promise<number> {
   const rows = await query<RowDataPacket[]>(
     "SELECT COUNT(*) AS cnt FROM form_submissions WHERE form_id = :formId",
@@ -610,8 +631,9 @@ async function getRecentSubmissions(
   formId: string,
   limit: number
 ): Promise<Submission[]> {
+  const cols = await submissionSelectColumns();
   const subRows = await query<RowDataPacket[]>(
-    `SELECT id, form_id, submitted_at, ip_address, user_agent, completion_time_ms, referrer
+    `SELECT ${cols}
      FROM form_submissions
      WHERE form_id = :formId ORDER BY submitted_at DESC LIMIT ${limit}`,
     { formId }
@@ -643,8 +665,9 @@ export async function getSubmissions(
   );
   const total = Number(countRows[0]?.cnt || 0);
 
+  const cols = await submissionSelectColumns();
   const subRows = await query<RowDataPacket[]>(
-    `SELECT id, form_id, submitted_at, ip_address, user_agent, completion_time_ms, referrer
+    `SELECT ${cols}
      FROM form_submissions WHERE ${where}
      ORDER BY submitted_at DESC LIMIT ${limit} OFFSET ${offset}`,
     params
@@ -673,8 +696,9 @@ export async function deleteSubmission(submissionId: string, formId: string): Pr
 }
 
 export async function getSubmissionById(submissionId: string, formId: string): Promise<Submission | null> {
+  const cols = await submissionSelectColumns();
   const rows = await query<RowDataPacket[]>(
-    `SELECT id, form_id, submitted_at, ip_address, user_agent, completion_time_ms, referrer
+    `SELECT ${cols}
      FROM form_submissions WHERE id = :id AND form_id = :formId LIMIT 1`,
     { id: submissionId, formId }
   );
