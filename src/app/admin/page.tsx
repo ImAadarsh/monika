@@ -48,18 +48,17 @@ export default async function AdminDashboardPage() {
           ) : (
             <div className="divide-y divide-border">
               {forms.slice(0, 5).map((form) => (
-                <Link
+                <div
                   key={form.id}
-                  href={`/admin/forms/${form.id}/edit`}
                   className="flex items-center justify-between py-4 transition-colors hover:bg-muted/30 -mx-2 px-2 rounded-lg"
                 >
-                  <div>
+                  <Link href={`/admin/forms/${form.id}/edit`} className="min-w-0 flex-1">
                     <p className="font-medium">{form.title}</p>
                     <p className="text-sm text-muted-foreground">
                       {form.submissionCount} responses · {form.fieldCount} fields ·{" "}
                       {formatDistanceToNow(new Date(form.updatedAt), { addSuffix: true })}
                     </p>
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-2">
                     {form.submissionCount > 0 && (
                       <Link href={`/admin/forms/${form.id}/responses`} className="text-muted-foreground hover:text-primary">
@@ -74,7 +73,7 @@ export default async function AdminDashboardPage() {
                     {form.isPublished ? "Live" : "Draft"}
                   </span>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}

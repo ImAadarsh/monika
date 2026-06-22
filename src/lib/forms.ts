@@ -11,6 +11,14 @@ import type {
   FieldType,
 } from "@/types/form";
 
+function formatTimelineDate(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const isoMatch = /^(\d{4}-\d{2}-\d{2})/.exec(String(value ?? "").trim());
+  return isoMatch ? isoMatch[1] : "";
+}
+
 interface FormRow extends RowDataPacket {
   id: string;
   slug: string;
@@ -527,7 +535,7 @@ export async function getAnalytics(formId: string): Promise<AnalyticsData | null
       bounceRate: totalViews > 0 ? Math.round(((totalViews - total) / totalViews) * 100) : undefined,
     },
     timeline: timelineRows.map((r) => ({
-      date: String(r.date),
+      date: formatTimelineDate(r.date),
       count: Number(r.count),
     })),
     fieldStats,

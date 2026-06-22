@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -16,7 +17,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
-import { formatNumber } from "@/lib/utils";
+import { formatAnalyticsDate, formatNumber } from "@/lib/utils";
 import type { AnalyticsData } from "@/types/form";
 import {
   BarChart3,
@@ -26,12 +27,49 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 
 const COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899", "#f43f5e"];
+const CHART_MIN_HEIGHT = 256;
+
+function ChartContainer({
+  children,
+  className = "h-64 w-full min-h-[16rem]",
+  minHeight = CHART_MIN_HEIGHT,
+}: {
+  children: ReactNode;
+  className?: string;
+  minHeight?: number;
+}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  return (
+    <div className={className}>
+      {mounted ? (
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={minHeight}>
+          {children}
+        </ResponsiveContainer>
+      ) : (
+        <div className="h-full w-full" />
+      )}
+    </div>
+  );
+}
 
 export function AnalyticsDashboard({ data }: { data: AnalyticsData }) {
   const { overview, timeline, fieldStats, recentSubmissions, deviceBreakdown, hourlyDistribution } = data;
+  const timelineData = useMemo(
+    () =>
+      timeline.map((point) => ({
+        ...point,
+        date: formatAnalyticsDate(point.date, "yyyy-MM-dd", ""),
+      })).filter((point) => point.date),
+    [timeline]
+  );
 
   return (
     <div className="space-y-6">
@@ -54,9 +92,8 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsData }) {
             <CardTitle>Submissions Over Time</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={timeline}>
+            <ChartContainer>
+              <AreaChart data={timelineData}>
                   <defs>
                     <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -66,17 +103,16 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsData }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(d) => format(parseISO(String(d)), "MMM d")}
+                    tickFormatter={(d) => formatAnalyticsDate(d, "MMM d")}
                     fontSize={12}
                   />
                   <YAxis fontSize={12} allowDecimals={false} />
                   <Tooltip
-                    labelFormatter={(d) => format(parseISO(String(d)), "MMM d, yyyy")}
+                    labelFormatter={(d) => formatAnalyticsDate(d, "MMM d, yyyy")}
                   />
                   <Area type="monotone" dataKey="count" stroke="#6366f1" fill="url(#colorCount)" strokeWidth={2} />
                 </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            </ChartContainer>
           </CardContent>
         </Card>
 
@@ -85,17 +121,15 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsData }) {
             <CardTitle>Hourly Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={hourlyDistribution}>
+            <ChartContainer>
+              <BarChart data={hourlyDistribution}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} fontSize={12} />
                   <YAxis fontSize={12} allowDecimals={false} />
                   <Tooltip labelFormatter={(h) => `${h}:00 - ${Number(h) + 1}:00`} />
                   <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                 </BarChart>
-              </ResponsiveContainer>
-            </div>
+            </ChartContainer>
           </CardContent>
         </Card>
       </div>
@@ -109,8 +143,7 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsData }) {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col items-center gap-6 sm:flex-row">
-              <div className="h-48 w-48">
-                <ResponsiveContainer width="100%" height="100%">
+              <ChartContainer className="h-48 w-48 min-h-[12rem] min-w-[12rem]" minHeight={192}>
                   <PieChart>
                     <Pie
                       data={deviceBreakdown}
@@ -127,8 +160,7 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsData }) {
                     </Pie>
                     <Tooltip />
                   </PieChart>
-                </ResponsiveContainer>
-              </div>
+              </ChartContainer>
               <div className="space-y-2">
                 {deviceBreakdown.map((d, i) => (
                   <div key={d.label} className="flex items-center gap-3">
@@ -200,7 +232,7 @@ export function AnalyticsDashboard({ data }: { data: AnalyticsData }) {
               {recentSubmissions.map((sub) => (
                 <div key={sub.id} className="rounded-lg border border-border p-4">
                   <p className="mb-2 text-xs text-muted-foreground">
-                    {format(new Date(sub.submittedAt), "MMM d, yyyy · h:mm a")}
+                    {formatAnalyticsDate(sub.submittedAt, "MMM d, yyyy · h:mm a")}
                   </p>
                   <div className="grid gap-1 sm:grid-cols-2">
                     {sub.answers.slice(0, 4).map((a) => (

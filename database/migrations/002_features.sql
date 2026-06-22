@@ -2,9 +2,9 @@
 -- Run after schema.sql if you want submission metadata and view tracking
 
 ALTER TABLE form_submissions
-  ADD COLUMN IF NOT EXISTS completion_time_ms INT DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS referrer VARCHAR(500) DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT NULL;
+  ADD COLUMN completion_time_ms INT DEFAULT NULL,
+  ADD COLUMN referrer VARCHAR(500) DEFAULT NULL,
+  ADD COLUMN metadata JSON DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS form_views (
   id CHAR(36) PRIMARY KEY,

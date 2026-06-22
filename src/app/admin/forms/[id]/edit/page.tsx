@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, ExternalLink, Inbox, Loader2, QrCode, Save } from "lucide-react";
+import { BarChart3, ExternalLink, EyeOff, Globe, Inbox, Loader2, QrCode, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { FormBuilder } from "@/components/admin/form-builder";
@@ -50,13 +50,14 @@ export default function EditFormPage({ params }: { params: Promise<{ id: string 
     });
   }, [params]);
 
-  async function save() {
+  async function save(overrides?: { isPublished?: boolean }) {
+    const nextPublished = overrides?.isPublished ?? isPublished;
     setSaving(true);
     try {
       const res = await fetch(`/api/forms/${formId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, fields, settings, isPublished }),
+        body: JSON.stringify({ title, description, fields, settings, isPublished: nextPublished }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -74,7 +75,14 @@ export default function EditFormPage({ params }: { params: Promise<{ id: string 
       }
 
       setForm(data.form);
-      toast.success("Form saved!");
+      setIsPublished(nextPublished);
+      if (overrides?.isPublished === true) {
+        toast.success("Form published! It is now live at /f/" + slug);
+      } else if (overrides?.isPublished === false) {
+        toast.success("Form unpublished — it is no longer publicly accessible.");
+      } else {
+        toast.success("Form saved!");
+      }
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
@@ -105,8 +113,25 @@ export default function EditFormPage({ params }: { params: Promise<{ id: string 
     <AdminShell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Edit Form</h1>
-          <p className="text-sm text-muted-foreground">/f/{slug}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold">Edit Form</h1>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                isPublished
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-amber-100 text-amber-800"
+              }`}
+            >
+              {isPublished ? "Published" : "Draft"}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {isPublished ? (
+              <>Live at /f/{slug}</>
+            ) : (
+              <>Not public yet — publish to make /f/{slug} accessible</>
+            )}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href={`/admin/forms/${formId}/responses`}>
@@ -123,10 +148,21 @@ export default function EditFormPage({ params }: { params: Promise<{ id: string 
               <Button variant="outline" size="sm"><ExternalLink className="h-4 w-4" /> Preview</Button>
             </Link>
           )}
-          <Button onClick={save} disabled={saving}>
+          <Button variant="outline" onClick={() => save()} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save
           </Button>
+          {isPublished ? (
+            <Button variant="outline" onClick={() => save({ isPublished: false })} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
+              Unpublish
+            </Button>
+          ) : (
+            <Button onClick={() => save({ isPublished: true })} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+              Publish
+            </Button>
+          )}
         </div>
       </div>
 
@@ -139,12 +175,6 @@ export default function EditFormPage({ params }: { params: Promise<{ id: string 
       </div>
 
       <div className="mb-6 space-y-4 rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center justify-between">
-          <Label className="text-base">Published</Label>
-          <button type="button" onClick={() => setIsPublished(!isPublished)} className={`relative h-7 w-12 rounded-full transition-colors ${isPublished ? "bg-primary" : "bg-muted"}`}>
-            <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${isPublished ? "left-5" : "left-0.5"}`} />
-          </button>
-        </div>
         <div>
           <Label>Form Title</Label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1.5 text-lg font-medium" />

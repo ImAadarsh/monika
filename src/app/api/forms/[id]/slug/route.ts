@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { updateFormSlug } from "@/lib/forms";
 
-export async function PUT(
+async function handleSlugUpdate(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  params: Promise<{ id: string }>
 ) {
   const session = await getSession();
   if (!session) {
@@ -17,4 +17,18 @@ export async function PUT(
     return NextResponse.json({ error: "Slug unavailable or invalid" }, { status: 400 });
   }
   return NextResponse.json({ form });
+}
+
+export async function PUT(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  return handleSlugUpdate(req, ctx.params);
+}
+
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  return handleSlugUpdate(req, ctx.params);
 }

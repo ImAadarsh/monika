@@ -44,9 +44,6 @@ export default function PublicFormPage({ params }: { params: Promise<{ slug: str
   return (
     <div className="min-h-screen gradient-bg grid-pattern py-12 px-4">
       <PublicFormView form={form} />
-      <p className="mt-8 text-center text-xs text-muted-foreground">
-        Powered by FormFlow
-      </p>
     </div>
   );
 }
