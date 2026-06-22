@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -58,6 +59,9 @@ export default function NewFormPage() {
           <p className="text-sm text-muted-foreground">Build your form with drag-and-drop fields</p>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/templates">
+            <Button variant="outline">Use Template</Button>
+          </Link>
           <Button variant="outline" onClick={() => save(false)} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Save Draft

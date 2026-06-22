@@ -185,10 +185,23 @@ export function PublicFormView({ form }: { form: Form }) {
   const [darkMode, setDarkMode] = useState(false);
   const [honeypot, setHoneypot] = useState("");
   const [showDraftBanner, setShowDraftBanner] = useState(false);
+  const [offline, setOffline] = useState(false);
   const { loadDraft, clearDraft } = useFormDraft(form.id, answers, !submitted);
 
   const themeColor = form.settings.themeColor || "#6366f1";
   const settings = form.settings;
+
+  useEffect(() => {
+    setOffline(!navigator.onLine);
+    const onOff = () => setOffline(true);
+    const onOn = () => setOffline(false);
+    window.addEventListener("offline", onOff);
+    window.addEventListener("online", onOn);
+    return () => {
+      window.removeEventListener("offline", onOff);
+      window.removeEventListener("online", onOn);
+    };
+  }, []);
 
   useEffect(() => {
     const defaults: Record<string, string | string[]> = {};
@@ -353,6 +366,12 @@ export function PublicFormView({ form }: { form: Form }) {
     <form onSubmit={handleSubmit} className={`mx-auto max-w-2xl space-y-4 print:shadow-none ${settings.customCssClass || ""}`} style={{ fontFamily }} aria-label={form.title}>
       {settings.enableHoneypot && (
         <input type="text" name="_hp" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} className="absolute -left-[9999px]" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+      )}
+
+      {offline && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+          You&apos;re offline — your answers are saved locally and will submit when you reconnect.
+        </div>
       )}
 
       {showDraftBanner && (
